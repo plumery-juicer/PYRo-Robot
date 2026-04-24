@@ -1,0 +1,46 @@
+#include "pyro_booster.h"
+
+namespace pyro
+{
+
+void booster_t::state_passive_t::enter(owner *owner)
+{
+    owner->_ctx.booster_cfg.pid.trigger_pos_pid->clear();
+    owner->_ctx.booster_cfg.pid.trigger_spd_pid->clear();
+    owner->_ctx.booster_cfg.motor.trigger_wheel->disable();
+    owner->_ctx.booster_cfg.motor.fric_wheels[0]->disable();
+    owner->_ctx.booster_cfg.motor.fric_wheels[1]->disable();
+    _trigger_stopped = false;
+}
+
+void booster_t::state_passive_t::execute(owner *owner)
+{
+    // 持续输出0
+    owner->_ctx.data.target_fric_mps[0] = 0.0f;
+    owner->_ctx.data.target_fric_mps[1] = 0.0f;
+    owner->_fric_control();
+    for (int i = 0; i < 2; i++)
+    {
+        if (abs(owner->_ctx.data.current_fric_mps[i]) < 0.3f)
+            owner->_ctx.data.out_fric_torque[i] = 0.0f;
+    }
+    owner->_ctx.data.out_trig_torque = 0;
+    owner->_send_fric_command();
+
+    owner->_ctx.data.target_trig_position   = owner->_ctx.data.current_trig_position;
+    owner->_ctx.data.target_trig_radps = 0.0f;
+    if (abs(owner->_ctx.data.current_trig_radps) < 0.05f)
+    {
+        owner->_ctx.data.out_trig_torque = 0.0f;
+        _trigger_stopped                 = true;
+    }
+    if (!_trigger_stopped)
+        owner->_trigger_speed_control();
+    owner->_send_trigger_command();
+}
+
+void booster_t::state_passive_t::exit(owner *owner)
+{
+}
+
+} // namespace pyro

@@ -69,10 +69,14 @@ add_subdirectory(PYRo)
     add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/robot/hero)
  elseif (ROBOT_ID EQUAL SUB_HERO_ID)
      add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/robot/sub_hero)
+ elseif (ROBOT_ID EQUAL INFANTRY1_ID)
+     add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/Robot/Infantry1)
  elseif(ROBOT_ID EQUAL INFANTRY2_ID)
      add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/robot/infantry2)
  elseif(ROBOT_ID EQUAL SENTRY_ID)
      add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/robot/sentry)
+ elseif(ROBOT_ID EQUAL TARGET_ID)
+     add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/robot/target)
  endif ()
 
 
@@ -81,7 +85,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
     stm32cubemx
     CMSISDSP
     dsppp_lib
-    Hero
+    Infantry1
 
 )
 
