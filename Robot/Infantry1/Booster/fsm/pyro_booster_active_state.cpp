@@ -14,13 +14,12 @@ void booster_t::fsm_active_t::on_enter(owner *owner)
 
 void booster_t::fsm_active_t::on_execute(owner *owner)
 {
-
+    owner->_speed_control();
     if (owner->_ctx.cmd->fric_on)
     {
         owner->_ctx.data.target_fric_mps[0] = owner->_ctx.shoot_data.fric1_mps; 
         owner->_ctx.data.target_fric_mps[1] = owner->_ctx.shoot_data.fric2_mps;
-        owner->_fric_control();
-        owner->_speed_control();
+        owner->_fric_control();      
     }
     else
     {
@@ -28,11 +27,11 @@ void booster_t::fsm_active_t::on_execute(owner *owner)
         owner->_ctx.data.target_fric_mps[1] = 0.0f;
 
         owner->_fric_control();
-        if(fabsf(owner->_ctx.data.current_fric_mps[0])<6.0f)
+        if(fabsf(owner->_ctx.data.current_fric_mps[0])<60.0f)
         {
             owner->_ctx.data.out_fric_torque[0]=0.0;
         }
-        if(fabsf(owner->_ctx.data.current_fric_mps[1])<6.0f)
+        if(fabsf(owner->_ctx.data.current_fric_mps[1])<60.0f)
         {
             owner->_ctx.data.out_fric_torque[1]=0.0;
         }

@@ -114,8 +114,8 @@ void gimbal_vt032cmd()
     else if (pyro::sw_pos_t::MID == vrc.switches.gear.current_pos)
     {
         infantry1_gimbal_cmd_ptr->mode              = pyro::cmd_base_t::mode_t::ACTIVE;
-        infantry1_gimbal_cmd_ptr->pitch_angle = vrc.axes.ry * 0.0018f;
-        infantry1_gimbal_cmd_ptr->yaw_angle   = -vrc.axes.rx * 0.005f;
+        infantry1_gimbal_cmd_ptr->pitch_angle = vrc.axes.ry * 0.002f+vrc.mouse_axes.y*0.8f;
+        infantry1_gimbal_cmd_ptr->yaw_angle   = -vrc.axes.rx * 0.005f-vrc.mouse_axes.x*0.5f;
         return;
     }
 
@@ -125,7 +125,7 @@ void chassis_vt032cmd(uint32_t notify_val)
 {
     pyro::read_scope_lock lock(pyro::rc_drv_t::get_lock());
     auto &vrc = pyro::rc_drv_t::read();
-   
+   static bool wz_schmit=false;
 
     float angle_yaw=infantry1_gimbal_ptr->get_yaw();
 
@@ -148,6 +148,20 @@ void chassis_vt032cmd(uint32_t notify_val)
         vy        = static_cast<int8_t>((vrc.axes.lx*cosf(angle_yaw)+vrc.axes.ly*sinf(angle_yaw))*127*0.5f);
         wz        = static_cast<int8_t>(-chassis_yaw_pid.calculate(0.0f, infantry1_gimbal_ptr->get_yaw())*127);
         active    = true;
+    }
+
+    if(!wz_schmit){
+        if(fabs(infantry1_gimbal_ptr->get_yaw())>0.3f)
+        {
+            wz_schmit=true;
+        }
+    }
+    else if(wz_schmit){
+        if(fabs(infantry1_gimbal_ptr->get_yaw())<0.1f)
+        {
+            wz_schmit=false;
+            wz=0;
+        }
     }
 
     if(notify_val==EVENT_BIT_SPINNING_TOGGLE)
@@ -185,14 +199,16 @@ void gimbal_config()
     infantry1_gimbal_cfg_ptr->motor.pitch =
         new dm_motor_drv_t(0x01, 0x00, can_hub_t::can2); // Pitch 轴使用 DM 电机
     infantry1_gimbal_cfg_ptr->motor.pitch->set_position_range(-PI, PI);
-    infantry1_gimbal_cfg_ptr->motor.pitch->set_rotate_range(-20.0f, 20.0f);
+    infantry1_gimbal_cfg_ptr->motor.pitch->set_runtime_kp(10.0f);
+    infantry1_gimbal_cfg_ptr->motor.pitch->set_runtime_kd(1.0f);
+    infantry1_gimbal_cfg_ptr->motor.pitch->set_rotate_range(-30.0f, 30.0f);
     infantry1_gimbal_cfg_ptr->motor.pitch->set_torque_range(-10.0f, 10.0f);
     
     infantry1_gimbal_cfg_ptr->motor.yaw = new dji_gm_6020_motor_drv_t(
         dji_motor_tx_frame_t::id_5 , can_hub_t::can1);
 
     infantry1_gimbal_cfg_ptr->yaw_pos_offset =-1.00629139f;
-    infantry1_gimbal_cfg_ptr->pitch_pos_offset = -0.218f;
+    infantry1_gimbal_cfg_ptr->pitch_pos_offset = 0.0f;
     // 3. 初始化串级 PID
     infantry1_gimbal_cfg_ptr->pid.pitch_pos =
         new pid_t(30.0f, 0.2f, 0.05f, 10.0f, 45.0f); // 位置环输出为 rad/s，限制在电机可接受范围内

@@ -5,6 +5,10 @@
 #include <cmath>
 
 float bulletspeed;
+float debug_fric0;
+float debug_fric1;
+float debug_fric11;
+
 
 namespace pyro
 {
@@ -43,13 +47,13 @@ void booster_t::_update_feedback()
         _ctx.data.current_fric_torque[i] = _ctx.booster_cfg.motor.fric_wheels[i]->get_current_torque();
     }
     _ctx.data.current_fric_mps[0] = _ctx.booster_cfg.motor.fric_wheels[0]->get_current_rotate();
-    _ctx.data.current_fric_mps[1] = (0.4f*_ctx.booster_cfg.motor.fric_wheels[1]->get_current_rotate()+0.6f*_ctx.data.current_fric_mps[1]);
+    _ctx.data.current_fric_mps[1] = _ctx.booster_cfg.motor.fric_wheels[1]->get_current_rotate();
     // 2. 拨弹反馈
     _ctx.booster_cfg.motor.trigger_wheel->update_feedback();
 
     // --- A. 速度反馈 ---
     _ctx.data.current_trig_radps =
-        _ctx.booster_cfg.motor.trigger_wheel->get_current_rotate();
+        (_ctx.booster_cfg.motor.trigger_wheel->get_current_rotate()*0.5f+_ctx.data.current_trig_radps*0.5f);
 
     // --- B. 扭矩反馈 ---
     _ctx.data.current_trig_torque =
@@ -86,13 +90,13 @@ void booster_t::_speed_control()
         }
 
         // 2. 确保目标弹速有效，避免启动时出现误动作
-        if (_ctx.cmd->target_speed > 7.5f)
+        if (_ctx.cmd->target_speed > 20.0f)
         {
             // --- A. 定义近期弹速的权重 ---
             // 越新的弹速参考价值越大
-            constexpr float w0 = 0.72f; // 最新一发
-            constexpr float w1 = 0.21f; // 上一发
-            constexpr float w2 = 0.07f; // 上上发
+            constexpr float w0 = 0.6f; // 最新一发
+            constexpr float w1 = 0.3f; // 上一发
+            constexpr float w2 = 0.1f; // 上上发
 
             // --- B. 计算带符号的均方误差 ---
             float e0 = _ctx.shoot_data.ball_speed[0] - _ctx.cmd->target_speed;
@@ -103,21 +107,22 @@ void booster_t::_speed_control()
             float signed_weighted_mse = (w0 * e0 * std::abs(e0)) +
                                         (w1 * e1 * std::abs(e1)) +
                                         (w2 * e2 * std::abs(e2));
-
+            debug_fric1=signed_weighted_mse;
             // --- C. PID 计算速度增量 ---
             // 由于 signed_weighted_mse 本身已经是误差值，直接将其作为
             // target，current 设为 0
             float speed_increment =
                 _ctx.booster_cfg.pid.ball_speed_pid->calculate(0.0f, signed_weighted_mse);
-
-            // --- D. 累加到 fric1 的基础转速上 ---
-        /*    _ctx.shoot_data.fric1_mps += speed_increment;
-            _ctx.shoot_data.fric1_mps -= speed_increment;
+            
+            
+            // --- D. 累加到 fric0 的基础转速上 ---
+            _ctx.shoot_data.fric1_mps += speed_increment;
+            _ctx.shoot_data.fric2_mps -= speed_increment;
             // --- E. 安全限幅 (非常重要) ---
             // 避免闭环异常导致单侧摩擦轮转速过高或过低，导致卡弹或弹道严重偏斜
             // 这里的限幅值请根据你实际的摩擦轮物理极限进行调整
-            constexpr float MAX_FRIC1_MPS = 750.0f;
-            constexpr float MIN_FRIC1_MPS = 600.0f;
+            constexpr float MAX_FRIC1_MPS = 700.0f;
+            constexpr float MIN_FRIC1_MPS = 670.0f;
 
             if (_ctx.shoot_data.fric1_mps > MAX_FRIC1_MPS)
             {
@@ -128,15 +133,15 @@ void booster_t::_speed_control()
                 _ctx.shoot_data.fric1_mps = MIN_FRIC1_MPS;
             }
 
-            if (_ctx.shoot_data.fric1_mps < -MAX_FRIC1_MPS)
+            if (_ctx.shoot_data.fric2_mps < -MAX_FRIC1_MPS)
             {
-                _ctx.shoot_data.fric1_mps = -MAX_FRIC1_MPS;
+                _ctx.shoot_data.fric2_mps = -MAX_FRIC1_MPS;
             }
-            else if (_ctx.shoot_data.fric1_mps >- MIN_FRIC1_MPS)
+            else if (_ctx.shoot_data.fric2_mps >- MIN_FRIC1_MPS)
             {
-                _ctx.shoot_data.fric1_mps = -MIN_FRIC1_MPS;
+                _ctx.shoot_data.fric2_mps = -MIN_FRIC1_MPS;
             }
-        */
+        
         }
     }
 }
@@ -144,10 +149,20 @@ void booster_t::_speed_control()
 
 void booster_t::_fric_control()
 {
+    if(_ctx.cmd->fire_count != _ctx.data.internal_fire_count)
+    {
+        _ctx.data.target_fricom_mps[0]=0;
+        _ctx.data.target_fricom_mps[1]=0;
+    }
+    else
+    {
+        _ctx.data.target_fricom_mps[0]=0;
+        _ctx.data.target_fricom_mps[1]=0;
+    }
     for (int i = 0; i < 2; i++)
     {
         _ctx.data.out_fric_torque[i] = _ctx.booster_cfg.pid.fric_pid[i]->calculate(
-            _ctx.data.target_fric_mps[i], _ctx.data.current_fric_mps[i]);
+            _ctx.data.target_fric_mps[i]+_ctx.data.target_fricom_mps[i], _ctx.data.current_fric_mps[i]);
     }
 }
 
@@ -181,6 +196,7 @@ void booster_t::_trigger_speed_control()
 
 void booster_t::_send_fric_command() const
 {
+   
    _ctx.booster_cfg.motor.fric_wheels[0]->send_torque(_ctx.data.out_fric_torque[0]);
    _ctx.booster_cfg.motor.fric_wheels[1]->send_torque(_ctx.data.out_fric_torque[1]);
 }

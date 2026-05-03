@@ -6,7 +6,7 @@ namespace pyro
 {
 void booster_t::fsm_active_t::state_continue_t::enter(owner *owner)
 {
-     owner->_ctx.data.target_trig_radps = 400.0f; // 
+     owner->_ctx.data.target_trig_radps = owner->_ctx.data.target_trig_continue_radps; // 
 }
 
 void booster_t::fsm_active_t::state_continue_t::execute(owner *owner)

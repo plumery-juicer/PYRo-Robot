@@ -23,6 +23,7 @@ void booster_t::fsm_active_t::state_ready_t::execute(owner *owner)
     }
 
     owner->_trigger_position_control();
+    owner->_trigger_speed_control();
     owner->_send_trigger_command();
 }
 

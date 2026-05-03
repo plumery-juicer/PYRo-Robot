@@ -86,6 +86,8 @@ class infantry1_gimbal_t final
     void _communicate_chassis();
     void yaw_angle_ch(float current_yaw, float &target_yaw);
     bool init_fleg;
+    float imu2motor_pitch(float imu_pitch);
+    float motor2imu_pitch(float motor_pitch);
     // 运行时数据
     struct data_ctx_t
     {
@@ -93,9 +95,10 @@ class infantry1_gimbal_t final
         float yaw_imu_rad{0};
         float roll_imu_rad{0};
 
-        float target_pitch_rad{0};
+        float target_pitch_rad{0};//电机的
         float target_pitch_radps{0};
-        float target_ins_rad{0};
+        float target_imupitch_rad{0};//imu
+        float target_imuyaw_rad{0};//imu
 
         float current_pitch_rad{0};
         float current_pitch_radps{0};
@@ -105,6 +108,7 @@ class infantry1_gimbal_t final
         float out_pitch_torque{0};
         float out_yaw_torque{0};
     };
+
 
      enum class drive_mode_t
     {

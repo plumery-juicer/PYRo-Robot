@@ -106,10 +106,15 @@ class booster_t final
         float target_trig_position{0};
         float target_trig_radps{0};
 
+        float target_trig_continue_radps=550.0f;
+
+        float target_fricom_mps[2]{};
+
         float current_fric_torque[2]{};
         // 输出
         float out_fric_torque[2]{};
         float out_trig_torque{0};
+       
     };
 
     struct shoot_data_t

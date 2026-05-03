@@ -36,7 +36,7 @@ extern "C"
 
             if (vt03_drv_t::instance().check_online())
             {
-                chassis_vt032cmd(notify_val);
+               chassis_vt032cmd(notify_val);
                 gimbal_vt032cmd();
             }
             else if (dr16_drv_t::instance().check_online())

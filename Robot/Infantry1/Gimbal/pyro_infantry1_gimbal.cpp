@@ -11,13 +11,17 @@ float debugbuf_fire1;
 float debugbuf_fire11;
 float debugbuf_fire2;
 float debugbuf_fire22;
+float debugbuf1[4];
 
 namespace pyro
 {
-#define minpitch_rad (-0.32f) //pitch电机的反馈角度于pitch轴的实际角度相反，因此所谓min是指电机角度的min
-#define maxpitch_rad (0.001f)
+#define minpitch_rad (-0.11f) //pitch电机的反馈角度于pitch轴的实际角度相反，因此所谓min是指电机角度的min
+#define maxpitch_rad (0.205f)
 
-float debugbuf1[4];
+#define imu_pitch_min (-0.583625f)
+#define imu_pitch_max (0.6967f)
+
+
 // =========================================================
 // 构造与初始化
 // =========================================================
@@ -112,38 +116,47 @@ void infantry1_gimbal_t::yaw_angle_ch(float current_angle, float& target_angle)
         target_angle = current_angle + angle_diff;
     }
 
+float pyro::infantry1_gimbal_t::imu2motor_pitch(float imu_pitch)
+{
+    float motor_pitch = -0.2473404331f*imu_pitch+0.066523596732f; // pitch轴电机与imu的转换关系；
+    return motor_pitch;
+}
+
+float pyro::infantry1_gimbal_t::motor2imu_pitch(float motor_pitch)
+{
+    float imu_pitch = (motor_pitch-0.066523596732f)/(-0.2473404331f); // pitch轴电机与imu的转换关系；
+    return imu_pitch;
+}
 
 void infantry1_gimbal_t::_gimbal_control()
 {
     if(!init_fleg) {
         _ctx.data.target_pitch_rad=_ctx.data.current_pitch_rad;
+        _ctx.data.target_imupitch_rad=_ctx.data.pitch_imu_rad;
         init_fleg=true;
     }
-    _ctx.data.target_ins_rad += _ctx.cmd->yaw_angle;
-    _ctx.data.target_pitch_rad+=_ctx.cmd->pitch_angle;
+    _ctx.data.target_imuyaw_rad += _ctx.cmd->yaw_angle;
 
-    // if(_ctx.data.current_pitch_rad<-0.32f)
-    // {
-    //     if(_ctx.cmd->pitch_angle<0.0f)
-    //         _ctx.cmd->pitch_angle=0.0f;
-    //     _ctx.data.target_pitch_rad=_ctx.data.pitch_imu_rad;
-    // }
-    // else if(_ctx.data.current_pitch_rad>0.001f)
-    // {
-    //     if(_ctx.cmd->pitch_angle>0.0f)
-    //         _ctx.cmd->pitch_angle=0.0f;
-    //     _ctx.data.target_pitch_rad=_ctx.data.pitch_imu_rad;
-    // }
-    // _ctx.data.target_pitch_rad -= _ctx.cmd->pitch_angle;
-    
+    _ctx.data.target_imupitch_rad += _ctx.cmd->pitch_angle;
 
-    if (_ctx.data.target_ins_rad > PI)
+    if (_ctx.data.target_imupitch_rad > imu_pitch_max)
     {
-        _ctx.data.target_ins_rad -= 2.0f * PI;
+        _ctx.data.target_imupitch_rad = imu_pitch_max;
     }
-    else if (_ctx.data.target_ins_rad < -PI)
+    else if (_ctx.data.target_imupitch_rad < imu_pitch_min)
     {
-        _ctx.data.target_ins_rad += 2.0f * PI;
+        _ctx.data.target_imupitch_rad = imu_pitch_min;
+    }
+
+    _ctx.data.target_pitch_rad=imu2motor_pitch(_ctx.data.target_imupitch_rad+motor2imu_pitch(_ctx.data.current_pitch_rad)-_ctx.data.pitch_imu_rad);
+    debugbuf1[0]=2.0f*_ctx.data.target_imupitch_rad-_ctx.data.pitch_imu_rad;
+    if (_ctx.data.target_imuyaw_rad > PI)
+    {
+        _ctx.data.target_imuyaw_rad -= 2.0f * PI;
+    }
+    else if (_ctx.data.target_imuyaw_rad < -PI)
+    {
+        _ctx.data.target_imuyaw_rad += 2.0f * PI;
     }
 
     if (_ctx.data.target_pitch_rad > maxpitch_rad)
@@ -155,7 +168,7 @@ void infantry1_gimbal_t::_gimbal_control()
         _ctx.data.target_pitch_rad = minpitch_rad;
     }
 
-    yaw_angle_ch(_ctx.data.yaw_imu_rad, _ctx.data.target_ins_rad);
+    yaw_angle_ch(_ctx.data.yaw_imu_rad, _ctx.data.target_imuyaw_rad);
     yaw_angle_ch(_ctx.data.pitch_imu_rad, _ctx.data.target_pitch_rad);
 
     float pitch_pos_output,yaw_pos_output;
@@ -166,7 +179,7 @@ void infantry1_gimbal_t::_gimbal_control()
         pitch_pos_output, _ctx.data.current_pitch_radps);
 
     yaw_pos_output=_ctx.gimbal_cfg_t.pid.yaw_pos->calculate(
-        _ctx.data.target_ins_rad, _ctx.data.yaw_imu_rad);
+        _ctx.data.target_imuyaw_rad, _ctx.data.yaw_imu_rad);
     _ctx.data.out_yaw_torque=_ctx.gimbal_cfg_t.pid.yaw_spd->calculate(
         yaw_pos_output, _ctx.data.current_yaw_radps);
 
@@ -179,7 +192,8 @@ infantry1_gimbal_t::gimbal_ctx_t infantry1_gimbal_t::get_ctx() const
 
 void infantry1_gimbal_t::_send_motor_command(gimbal_ctx_t *ctx)
 {
-    ctx->gimbal_cfg_t.motor.pitch->send_torque(ctx->data.out_pitch_torque);
+
+    ctx->gimbal_cfg_t.motor.pitch->send_mit_ctrl(ctx->data.target_pitch_rad, 0, 0);
     ctx->gimbal_cfg_t.motor.yaw->send_torque(ctx->data.out_yaw_torque);
 }
 
@@ -199,8 +213,6 @@ void infantry1_gimbal_t::_fsm_execute()
     _main_fsm.change_state(&_state_passive);
     else if(cmd_base_t::mode_t::ACTIVE == _ctx.cmd->mode)
     _main_fsm.change_state(&_state_active);
-    _ctx.gimbal_cfg_t.motor.pitch->enable();
-    _ctx.gimbal_cfg_t.motor.pitch->send_torque(0);
     _main_fsm.execute(this);
 }
 

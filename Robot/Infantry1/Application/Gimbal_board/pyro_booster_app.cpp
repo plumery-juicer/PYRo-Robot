@@ -78,7 +78,7 @@ extern "C"
         }
 
         booster_cmd_ptr->mode         = pyro::cmd_base_t::mode_t::ACTIVE;
-        booster_cmd_ptr->target_speed = 0.0f; // 可调节
+        booster_cmd_ptr->target_speed = 23.5f; // 可调节
 
 
         if (notify_val & EVENT_BIT_FRIC_ON)
@@ -127,6 +127,7 @@ extern "C"
 
         deps_init();
         booster_ptr->configure(*booster_cfg_ptr);
+        
 
         xTaskCreate(infantry1_booster_thread, "start_app_thread", 128, nullptr,
                     configMAX_PRIORITIES - 1, &booster_task_handle);
@@ -164,12 +165,15 @@ void deps_init()
 
 
     booster_cfg_ptr->pid.fric_pid[0] =
-        new pid_t(0.9f, 0.0f, 0.001f, 2.5f, 20);
+        new pid_t(0.79f, 0.7f, 0.003f, 10.0f, 20);
     booster_cfg_ptr->pid.fric_pid[1] =
-        new pid_t(0.38f, 0.3f, 0.0025f, 10.0f, 20);
+        new pid_t(0.45f, 0.55f, 0.003f, 10.0f, 20);
 
     booster_cfg_ptr->pid.trigger_pos_pid =
-        new pid_t(330.2f, 0.03f, 0.005f, 10.0f, 500.0f);
+        new pid_t(1500.0f, 0.0f, 0.0f, 10.0f, 500.0f);
     booster_cfg_ptr->pid.trigger_spd_pid =
-        new pid_t(0.26f, 0.001f, 0.00002f, 0.2f, 10.0f);
+        new pid_t(0.038f, 0.01f, 0.0001f, 5.2f, 10.0f);
+
+    booster_cfg_ptr->pid.ball_speed_pid =
+        new pid_t(0.0005f, 0.0f, 0.0f, 0.0f, 20.0f);
 }
